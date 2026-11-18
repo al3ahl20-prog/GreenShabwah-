@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>خريطة شبوة الخضراء | Green Shabwah Map</title>
+    <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --forest: #173D2C; --sidr: #285C40; --sand: #E9E5D8; --white: #FAF9F5; --text: #182620;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        html, body { width: 100%; height: 100dvh; font-family: 'Tajawal', sans-serif; background: var(--forest); overflow: hidden; }
+        h1, h2, h3, h4 { font-family: 'Alexandria', sans-serif; }
+        #map { width: 100%; height: 100%; z-index: 1; }
+        
+        .top-bar {
+            position: absolute; top: 12px; left: 12px; right: 12px; z-index: 1000;
+            background: rgba(250,249,245,0.96); backdrop-filter: blur(10px);
+            padding: 10px 14px; border-radius: 14px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        .brand { display: flex; align-items: center; gap: 10px; color: var(--forest); text-decoration: none; }
+        .brand-icon {
+            width: 38px; height: 38px; border-radius: 50%; background: var(--sidr); color: var(--white);
+            display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+        }
+        .brand h1 { font-size: 0.95rem; }
+        
+        .header-btns { display: flex; gap: 6px; }
+        .btn-icon {
+            background: var(--sand); border: 1px solid rgba(0,0,0,0.1); color: var(--forest);
+            width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.9rem;
+        }
+
+        .crosshair {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 26px; height: 26px; border: 2.5px solid #FFD166; border-radius: 50%;
+            background: rgba(40,92,64,0.25); pointer-events: none; z-index: 999;
+            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+        }
+        .crosshair::after {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
+            background: #FFD166; border-radius: 50%; transform: translate(-50%, -50%);
+        }
+        .coords-pill {
+            position: absolute; top: 72px; right: 12px; z-index: 999;
+            background: rgba(23,61,44,0.92); color: var(--white); padding: 5px 12px;
+            border-radius: 8px; font-size: 0.72rem; font-family: monospace;
+        }
+        .basemap-select {
+            position: absolute; top: 72px; left: 12px; z-index: 999;
+            background: rgba(250,249,245,0.95); padding: 5px 10px; border-radius: 8px;
+            font-family: 'Tajawal', sans-serif; font-size: 0.78rem; font-weight: 700; color: var(--forest);
+            border: 1px solid rgba(0,0,0,0.1); cursor: pointer;
+        }
+        .gps-btn {
+            position: absolute; bottom: 88px; left: 14px; z-index: 999;
+            width: 44px; height: 44px; border-radius: 12px; background: var(--white);
+            border: 1px solid rgba(0,0,0,0.1); color: var(--forest); font-size: 1.1rem;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25); cursor: pointer;
+        }
+        .add-bar {
+            position: absolute; bottom: 22px; left: 16px; right: 16px; z-index: 999;
+            max-width: 380px; margin: 0 auto;
+        }
+        .btn-add {
+            width: 100%; background: var(--sidr); color: var(--white); border: 2px solid var(--white);
+            padding: 13px; border-radius: 99px; font-family: 'Alexandria', sans-serif; font-size: 0.88rem;
+            font-weight: 700; box-shadow: 0 10px 25px rgba(0,0,0,0.4); cursor: pointer;
+        }
+        .modal {
+            position: fixed; inset: 0; background: rgba(23,61,44,0.75); backdrop-filter: blur(4px);
+            z-index: 2000; display: none; align-items: center; justify-content: center; padding: 16px;
+        }
+        .modal.open { display: flex; }
+        .card {
+            background: var(--white); width: 100%; max-width: 460px; max-height: 90vh;
+            overflow-y: auto; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        .card-head {
+            background: var(--forest); color: var(--white); padding: 15px 18px;
+            display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10;
+        }
+        .card-body { padding: 18px; }
+        .field { margin-bottom: 12px; }
+        .field label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--forest); margin-bottom: 4px; }
+        .input, textarea.input {
+            width: 100%; height: 42px; padding: 0 12px; border-radius: 10px;
+            border: 1px solid rgba(23,61,44,0.25); font-family: 'Tajawal', sans-serif; font-size: 0.88rem;
+        }
+        textarea.input { height: 95px; padding: 10px 12px; resize: vertical; }
+        .btn-submit {
+            width: 100%; background: var(--forest); color: var(--white); border: none;
+            padding: 12px; border-radius: 10px; font-family: 'Alexandria', sans-serif; font-weight: 600; cursor: pointer;
+        }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        /* تنسيق الألبوم المصغر */
+        .album { display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 10px; margin-top: 10px; }
+        .album-item { background: #fff; border: 1px solid #ddd; border-radius: 10px; overflow: hidden; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+        .album-item img { width: 100%; height: 95px; object-fit: cover; display: block; }
+        .album-item span { display: block; font-size: 0.68rem; color: #173D2C; padding: 5px 4px; background: var(--sand); line-height: 1.35; }
+        
+        .popup-thumbs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 8px; padding-bottom: 2px; }
+        .popup-thumbs img { width: 54px; height: 54px; object-fit: cover; border-radius: 6px; border: 1px solid #ccc; flex-shrink: 0; }
+
+        .stat-box-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+        .stat-card-item { background: var(--sand); padding: 14px; border-radius: 12px; text-align: center; }
+        .stat-card-item h3 { font-size: 1.5rem; color: var(--forest); }
+        .stat-card-item p { font-size: 0.75rem; color: #52635B; margin-top: 4px; }
+        .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; }
+        .leaflet-popup-content { margin: 0; width: 235px !important; }
+        .map-popup-card { padding: 12px; text-align: right; font-family: 'Tajawal', sans-serif; }
+        .map-popup-card > img.main-cover { width: 100%; height: 115px; object-fit: cover; border-radius: 8px; margin-bottom: 6px; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <a href="#" class="brand">
+            <div class="brand-icon"><i class="fa-solid fa-seedling"></i></div>
+            <div>
+                <h1>خريطة شبوة الخضراء</h1>
+                <span style="font-size:0.68rem; color:#52635B;">التوثيق البيئي الميداني</span>
+            </div>
+        </a>
+        <div class="header-btns">
+            <button class="btn-icon" onclick="openModal('statsModal')" title="الإحصائيات"><i class="fa-solid fa-chart-pie"></i></button>
+            <button class="btn-icon" onclick="openModal('contactModal')" title="تواصل معنا"><i class="fa-solid fa-envelope"></i></button>
+            <button class="btn-icon" onclick="openModal('aboutModal')" title="عن المبادرة"><i class="fa-solid fa-info-circle"></i></button>
+        </div>
+    </div>
+
+    <div class="crosshair"></div>
+    <div class="coords-pill" id="coordsBox">14.532800, 46.831900</div>
+    
+    <select id="basemapSelect" class="basemap-select" onchange="changeBasemap(this.value)">
+        <option value="satellite">🛰️ الأقمار الصناعية</option>
+        <option value="street">🗺️ الخريطة العادية</option>
+        <option value="terrain">⛰️ التضاريس</option>
+    </select>
+
+    <button class="gps-btn" onclick="getGPS()" title="موقعي الحالي"><i class="fa-solid fa-location-crosshairs"></i></button>
+    <div id="map"></div>
+
+    <div class="add-bar">
+        <button class="btn-add" onclick="openAddTree()"><i class="fa-solid fa-plus-circle"></i> إضافة غرسة في هذا الموقع</button>
+    </div>
+
+    <!-- نافذة الإحصائيات -->
+    <div class="modal" id="statsModal">
+        <div class="card">
+            <div class="card-head">
+                <h3>📊 إحصائيات المبادرة</h3>
+                <button onclick="closeModal('statsModal')" style="background:none;border:none;color:white;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div class="card-body">
+                <div class="stat-box-grid">
+                    <div class="stat-card-item"><h3 id="statTotalTrees">0</h3><p>غرسات معتمدة</p></div>
+                    <div class="stat-card-item"><h3 id="statHealthyTrees">0</h3><p>أشجار سليمة</p></div>
+                    <div class="stat-card-item"><h3 id="statDistrictsCount">0</h3><p>مديريات نشطة</p></div>
+                    <div class="stat-card-item"><h3 id="statVisitorsCount">0</h3><p>إجمالي الزيارات</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة تواصل معنا -->
+    <div class="modal" id="contactModal">
+        <div class="card">
+            <div class="card-head">
+                <h3>📩 تواصل معنا</h3>
+                <button onclick="closeModal('contactModal')" style="background:none;border:none;color:white;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div class="card-body">
+                <form id="contactForm">
+                    <div class="field"><label>الاسم الكامل *</label><input type="text" id="cName" class="input" required placeholder="اكتب اسمك"></div>
+                    <div class="field"><label>رقم الهاتف أو البريد الإلكتروني *</label><input type="text" id="cContact" class="input" required placeholder="رقم الواتساب أو الإيميل للتواصل معك"></div>
+                    <div class="field"><label>الرسالة أو الاستفسار *</label><textarea id="cMsgText" class="input" required placeholder="اكتب رسالتك لإدارة المبادرة..."></textarea></div>
+                    <button type="submit" id="cBtn" class="btn-submit">إرسال الرسالة</button>
+                    <div id="cStatus" style="margin-top:8px; text-align:center; font-size:0.8rem; font-weight:700;"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة نبذة عن المبادرة -->
+    <div class="modal" id="aboutModal">
+        <div class="card">
+            <div class="card-head">
+                <h3>🌿 عن مبادرة شبوة خضراء</h3>
+                <button onclick="closeModal('aboutModal')" style="background:none;border:none;color:white;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div class="card-body" style="font-size:0.85rem; line-height:1.7; color:#223028;">
+                <p>مبادرة <b>«شبوة خضراء»</b> مبادرة بيئية مجتمعية تهدف إلى استعادة الغطاء النباتي الطبيعي في محافظة شبوة، وتعزيز انتشار الأشجار والنباتات المحلية من خلال التشجير والتوثيق الميداني.</p>
+                <br>
+                <p style="font-weight:700; color:var(--forest);">شبوة خضراء... أرض تنبض بالحياة، ومستقبل أكثر اخضراراً.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة إضافة غرسة جديدة -->
+    <div class="modal" id="addModal">
+        <div class="card">
+            <div class="card-head">
+                <h3>🌱 إضافة غرسة جديدة</h3>
+                <button onclick="closeModal('addModal')" style="background:none;border:none;color:white;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div class="card-body">
+                <form id="treeForm">
+                    <div class="field"><label>اسم المتطوع *</label><input type="text" id="tName" class="input" required placeholder="الاسم الكامل"></div>
+                    <div class="field"><label>اسم المكان / الموقع الدقيق *</label><input type="text" id="tLoc" class="input" required placeholder="مثال: وادي عتق، حديقة المديرية..."></div>
+                    <div class="field">
+                        <label>نوع الشجرة *</label>
+                        <select id="tType" class="input" required onchange="checkCustomType(this.value)">
+                            <option value="سدر محلي (علوب)">سدر محلي (علوب)</option>
+                            <option value="سدر (ضاهي)">سدر (ضاهي)</option>
+                            <option value="طلح نجدي">طلح نجدي</option>
+                            <option value="سمر">سمر</option>
+                            <option value="أراك">أراك</option>
+                            <option value="سلم">سلم</option>
+                            <option value="أخرى">أخرى (إضافة يدوية)</option>
+                        </select>
+                    </div>
+                    <div class="field" id="customTypeField" style="display:none;">
+                        <label>اكتب نوع الشجرة *</label>
+                        <input type="text" id="tCustomType" class="input" placeholder="اسم الشجرة...">
+                    </div>
+                    <div class="field">
+                        <label>المديرية *</label>
+                        <select id="tDist" class="input" required>
+                            <option value="">اختر المديرية...</option>
+                            <option value="عتق">عتق</option><option value="بيحان">بيحان</option><option value="عسيلان">عسيلان</option>
+                            <option value="عين">عين</option><option value="نصاب">نصاب</option><option value="مرخة العليا">مرخة العليا</option>
+                            <option value="مرخة السفلى">مرخة السفلى</option><option value="حطيب">حطيب</option><option value="الصعيد">الصعيد</option>
+                            <option value="حبان">حبان</option><option value="الروضة">الروضة</option><option value="ميفعة">ميفعة</option>
+                            <option value="رضوم">رضوم</option><option value="جردان">جردان</option><option value="عرماء">عرماء</option>
+                            <option value="الطلح">الطلح</option><option value="دهر">دهر</option>
+                        </select>
+                    </div>
+                    <div class="field"><label>المنطقة / الوادي *</label><input type="text" id="tReg" class="input" required placeholder="اسم المنطقة أو القرية"></div>
+                    <div class="field">
+                        <label>الإحداثيات الملتقطة من الخريطة</label>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                            <input type="text" id="tLat" class="input" readonly style="background:#eee;">
+                            <input type="text" id="tLng" class="input" readonly style="background:#eee;">
+                        </div>
+                    </div>
+                    <div class="field"><label>صورة الغرسة الميدانية *</label><input type="file" id="tFile" class="input" accept="image/*" required style="padding-top:6px;"></div>
+                    <button type="submit" id="tBtn" class="btn-submit">إرسال الطلب للمراجعة</button>
+                    <div id="tMsg" style="margin-top:8px; text-align:center; font-size:0.8rem; font-weight:700;"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة تفاصيل الشجرة وإضافة صورة متابعة -->
+    <div class="modal" id="detailModal">
+        <div class="card">
+            <div class="card-head">
+                <h3 id="dTitle">تفاصيل الغرسة</h3>
+                <button onclick="closeModal('detailModal')" style="background:none;border:none;color:white;font-size:1.3rem;cursor:pointer;">&times;</button>
+            </div>
+            <div class="card-body">
+                <div id="dInfo" style="background:var(--sand); padding:10px; border-radius:10px; font-size:0.82rem; line-height:1.7;"></div>
+                <h4 style="margin-top:12px; font-size:0.85rem; color:var(--forest);">🖼️ ألبوم التوثيق الزمني</h4>
+                <div class="album" id="dAlbum"></div>
+
+                <hr style="margin:14px 0; border:0; border-top:1px solid #ddd;">
+                <h4 style="font-size:0.85rem; color:var(--sidr); margin-bottom:8px;">📸 إضافة صورة متابعة جديدة للغرسة</h4>
+                <form id="photoForm">
+                    <input type="hidden" id="pTreeId">
+                    <div class="field"><input type="text" id="pName" class="input" required placeholder="اسمك الكامل *"></div>
+                    <div class="field"><input type="text" id="pLoc" class="input" required placeholder="ملاحظة أو وصف الحالة *"></div>
+                    <div class="field"><input type="file" id="pFile" class="input" accept="image/*" required style="padding-top:6px;"></div>
+                    <button type="submit" id="pBtn" class="btn-submit" style="background:var(--sidr);">رفع الصورة للمراجعة</button>
+                    <div id="pMsg" style="margin-top:8px; text-align:center; font-size:0.78rem; font-weight:700;"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://script.google.com/macros/s/AKfycbzIxyvRClKaD4T4kCQHN10M8OTwhQUD6Fb28jKe7D72ZxZdT8FGCBrh_ByhLg_3GPQI/exec";
+
+        let map, layerGroup, currentBasemap, allTrees = [];
+
+        const treeMarkerIcon = L.divIcon({
+            className: 'custom-tree-marker',
+            html: '<div style="background:#285C40; color:white; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.4); border:2.5px solid #FAF9F5;"><i class="fa-solid fa-tree" style="font-size:15px;"></i></div>',
+            iconSize: [34, 34],
+            iconAnchor: [17, 17],
+            popupAnchor: [0, -18]
+        });
+
+        window.onload = () => {
+            map = L.map('map', { zoomControl: false }).setView([14.5328, 46.8319], 10);
+            L.control.zoom({ position: 'topleft' }).addTo(map);
+
+            currentBasemap = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            }).addTo(map);
+
+            layerGroup = L.layerGroup().addTo(map);
+            setTimeout(() => { if(map) map.invalidateSize(); }, 300);
+
+            map.on('move', () => {
+                const c = map.getCenter();
+                document.getElementById('coordsBox').textContent = `${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`;
+            });
+
+            loadPublicData();
+        };
+
+        function changeBasemap(type) {
+            if (currentBasemap) map.removeLayer(currentBasemap);
+            const lyrs = type === 'satellite' ? 's' : (type === 'street' ? 'm' : 'p');
+            currentBasemap = L.tileLayer(`https://{s}.google.com/vt/lyrs=${lyrs}&x={x}&y={y}&z={z}`, {
+                maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            }).addTo(map);
+            setTimeout(() => { if(map) map.invalidateSize(); }, 200);
+        }
+
+        function getGPS() {
+            navigator.geolocation.getCurrentPosition(p => {
+                map.setView([p.coords.latitude, p.coords.longitude], 16);
+                setTimeout(() => { if(map) map.invalidateSize(); }, 200);
+            }, () => alert("تعذر الوصول للموقع الجغرافي، تأكد من تفعيل GPS."));
+        }
+
+        function checkCustomType(val) {
+            const f = document.getElementById('customTypeField');
+            f.style.display = val === 'أخرى' ? 'block' : 'none';
+            document.getElementById('tCustomType').required = (val === 'أخرى');
+        }
+
+        function openAddTree() {
+            const c = map.getCenter();
+            document.getElementById('tLat').value = c.lat.toFixed(6);
+            document.getElementById('tLng').value = c.lng.toFixed(6);
+            document.getElementById('tMsg').textContent = "";
+            openModal('addModal');
+        }
+
+        function openModal(id) { document.getElementById(id).classList.add('open'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+        // ضغط الصورة تلقائياً في المتصفح لضمان سرعة واستقرار الرفع للدرايف
+        function compressImageToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = event => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 1000;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > MAX_WIDTH) {
+                            height = Math.round((height * MAX_WIDTH) / width);
+                            width = MAX_WIDTH;
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    };
+                    img.onerror = err => reject(err);
+                };
+                reader.onerror = err => reject(err);
+            });
+        }
+
+        function loadPublicData() {
+            fetch(`${API_URL}?action=getPublicData&device=${encodeURIComponent(navigator.platform)}`)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.status === "success") {
+                        allTrees = res.trees || [];
+                        document.getElementById('statTotalTrees').textContent = allTrees.length;
+                        document.getElementById('statHealthyTrees').textContent = allTrees.filter(t => t.health === "سليمة").length;
+                        document.getElementById('statDistrictsCount').textContent = new Set(allTrees.map(t => t.directorate)).size;
+                        document.getElementById('statVisitorsCount').textContent = res.totalVisitors || 0;
+                        
+                        layerGroup.clearLayers();
+                        allTrees.forEach(t => {
+                            if (isNaN(t.lat) || isNaN(t.lng)) return;
+                            const album = t.album || [];
+                            const firstImg = album.length > 0 ? album[0].url : '';
+                            const m = L.marker([t.lat, t.lng], { icon: treeMarkerIcon }).addTo(layerGroup);
+                            
+                            // شريط مصغر للصور داخل البطاقة المنبثقة
+                            const thumbsHtml = album.length > 0 
+                                ? `<div class="popup-thumbs">${album.map(img => `<img src="${img.url}" title="${img.label} (${img.date})" onerror="this.style.display='none'">`).join('')}</div>` 
+                                : '';
+
+                            const popupHtml = `
+                                <div class="map-popup-card">
+                                    ${firstImg ? `<img class="main-cover" src="${firstImg}" alt="شجرة" onerror="this.style.display='none'">` : ''}
+                                    ${thumbsHtml}
+                                    <h4 style="font-size:0.9rem; color:#173D2C; margin-bottom:4px;">${t.id} - ${t.type}</h4>
+                                    <p style="font-size:0.75rem; color:#444; margin-bottom:3px;">📍 ${t.directorate} - ${t.region}</p>
+                                    <p style="font-size:0.74rem; color:#285C40; font-weight:700; margin-bottom:7px;">📅 تاريخ الغرس: ${t.plantingDate || 'غير محدد'}</p>
+                                    <button onclick="openDetail('${t.id}')" style="width:100%; background:#173D2C; color:white; border:none; padding:7px; border-radius:6px; font-size:0.78rem; cursor:pointer; font-family:'Tajawal',sans-serif;">التفاصيل والألبوم (${album.length})</button>
+                                </div>
+                            `;
+                            m.bindPopup(popupHtml);
+                        });
+                    }
+                }).catch(() => {});
+        }
+
+        function openDetail(id) {
+            const t = allTrees.find(x => x.id === id);
+            if (!t) return;
+            document.getElementById('dTitle').textContent = `${t.id} - ${t.type}`;
+            document.getElementById('dInfo').innerHTML = `
+                <b>الموقع:</b> ${t.directorate} - ${t.region} (${t.locationName})<br>
+                <b>الحالة الصحية:</b> ${t.health}<br>
+                <b>تاريخ الزراعة:</b> ${t.plantingDate || 'غير محدد'}<br>
+                <b>المتطوع:</b> ${t.contributor}
+            `;
+            const album = t.album || [];
+            document.getElementById('dAlbum').innerHTML = album.length > 0 
+                ? album.map(item => `
+                    <div class="album-item">
+                        <a href="${item.url}" target="_blank"><img src="${item.url}" onerror="this.src='https://placehold.co/120x100?text=صورة'"></a>
+                        <span><b>${item.label}</b><br>📅 ${item.date || t.plantingDate}</span>
+                    </div>
+                `).join('')
+                : '<p style="font-size:0.78rem; color:#666; grid-column:1/-1;">لا توجد صور مرفقة لهذه الغرسة بعد.</p>';
+            
+            document.getElementById('pTreeId').value = t.id;
+            document.getElementById('pMsg').textContent = "";
+            openModal('detailModal');
+        }
+
+        // إضافة غرسة جديدة
+        document.getElementById('treeForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const file = document.getElementById('tFile').files[0];
+            if (!file) return;
+            const btn = document.getElementById('tBtn'), msg = document.getElementById('tMsg');
+            btn.disabled = true;
+            msg.style.color = "#173D2C";
+            msg.textContent = "⏳ جاري تجهيز الصورة ورفعها لمجلد الدرايف...";
+
+            try {
+                const compressedBase64 = await compressImageToBase64(file);
+                let treeType = document.getElementById('tType').value;
+                if (treeType === 'أخرى') treeType = document.getElementById('tCustomType').value.trim();
+
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "addTree",
+                        contributorName: document.getElementById('tName').value,
+                        locationName: document.getElementById('tLoc').value,
+                        type: treeType,
+                        directorate: document.getElementById('tDist').value,
+                        region: document.getElementById('tReg').value,
+                        lat: document.getElementById('tLat').value,
+                        lng: document.getElementById('tLng').value,
+                        imageBase64: compressedBase64
+                    })
+                });
+                const result = await res.json();
+                if (result.status === "success") {
+                    msg.textContent = "✅ تم رفع الصورة وحفظ الغرسة بنجاح! ستظهر فور اعتمادها.";
+                    this.reset();
+                    setTimeout(() => closeModal('addModal'), 2500);
+                } else {
+                    msg.style.color = "#DC2626";
+                    msg.textContent = "❌ " + (result.message || "حدث خطأ أثناء الحفظ.");
+                }
+            } catch (err) {
+                msg.style.color = "#DC2626";
+                msg.textContent = "❌ تعذر رفع الصورة أو الاتصال بالخادم.";
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        // إضافة صورة متابعة لغرسة معتمدة
+        document.getElementById('photoForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const file = document.getElementById('pFile').files[0];
+            if (!file) return;
+            const btn = document.getElementById('pBtn'), msg = document.getElementById('pMsg');
+            btn.disabled = true;
+            msg.style.color = "#173D2C";
+            msg.textContent = "⏳ جاري ضغط ورفع صورة المتابعة...";
+
+            try {
+                const compressedBase64 = await compressImageToBase64(file);
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "addTreePhoto",
+                        treeId: document.getElementById('pTreeId').value,
+                        contributorName: document.getElementById('pName').value,
+                        locationName: document.getElementById('pLoc').value,
+                        imageBase64: compressedBase64
+                    })
+                });
+                const result = await res.json();
+                if (result.status === "success") {
+                    msg.textContent = "✅ تم إرسال الصورة بحالة (قيد الانتظار)! ستُضاف للألبوم فور اعتمادها.";
+                    this.reset();
+                } else {
+                    msg.style.color = "#DC2626";
+                    msg.textContent = "❌ " + (result.message || "خطأ أثناء الرفع.");
+                }
+            } catch (err) {
+                msg.style.color = "#DC2626";
+                msg.textContent = "❌ تعذر رفع الصورة.";
+            } finally {
+                btn.disabled = false;
+            }
+        };
+
+        // نموذج تواصل معنا
+        document.getElementById('contactForm').onsubmit = function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('cBtn'), status = document.getElementById('cStatus');
+            btn.disabled = true;
+            status.style.color = "#173D2C";
+            status.textContent = "⏳ جاري إرسال رسالتك...";
+
+            fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "contactUs",
+                    name: document.getElementById('cName').value,
+                    contact: document.getElementById('cContact').value,
+                    message: document.getElementById('cMsgText').value
+                })
+            }).then(r => r.json()).then(result => {
+                btn.disabled = false;
+                if (result.status === "success") {
+                    status.textContent = "✅ تم استلام رسالتك بنجاح! شكراً لتواصلك معنا.";
+                    this.reset();
+                    setTimeout(() => closeModal('contactModal'), 2200);
+                }
+            }).catch(() => {
+                btn.disabled = false;
+                status.style.color = "#DC2626";
+                status.textContent = "❌ حدث خطأ أثناء الإرسال.";
+            });
+        };
+    </script>
+</body>
+</html>
